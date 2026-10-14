@@ -1,4 +1,4 @@
-"""TRACE training demo: one fixed 151673-based configuration; no YAML input."""
+"""TRACE command-line utility."""
 import argparse
 import inspect
 import json

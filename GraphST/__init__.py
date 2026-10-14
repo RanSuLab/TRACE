@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-"""
-# Author: Yahui Long
-# File Name: __init__.py
-# Description:
-"""
-
 __author__ = "Yahui Long"
 __email__ = "long_yahui@immunol.a-star.edu.sg"
 

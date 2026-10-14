@@ -1,53 +1,4 @@
-#!/usr/bin/env python3
-"""Biological validation of SAVED Ours Human Breast Cancer domains.
-
-No model is trained or benchmark method loaded. Input domains and coordinates
-come from Ours_predictions.csv; expression comes from the original 10x counts.
-The panels follow the questions in DeepST Figure 4, without claiming that
-the underlying annotations or domain numbers are identical.
-
-Example (run from GraphST-main; defaults resolve next to this script):
-  python plot_ours_hbc_validation.py
-
-The default Figure F contrast uses saved domain 2 (mostly DCIS/LCIS_4)
-versus domain 5 (mostly IDC_4), with domain 4 (mostly Healthy_1) as a
-third descriptive group. It writes three standalone panels, a combined
-three-panel PNG/SVG/PDF, and selected-gene pairwise statistics. The
-histology names come from an overlap with saved annotations; they are
-not model predictions. Spot-level P values are exploratory because nearby
-spots are spatially correlated.
-
-Override inputs or restrict domains when needed:
-  python plot_ours_hbc_validation.py \
-    --predictions constra/DeepST-main/Results/Ours_others_results/Human_Breast_Cancer/radius_50/Ours_predictions.csv \
-    --counts Data/3.Human_Breast_Cancer/filtered_feature_bc_matrix.h5 \
-    --out-dir figures/Ours_Human_Breast_Cancer_validation \
-    --domain-a 2 --domain-b 5 --comparison-domains 2 5 4
-
-Optional: --predictions-k10 path/to/independently_saved_10_domain_predictions.csv
-          --gmt path/to/GO_Biological_Process.gmt
-          --histology path/to/tissue_hires_image.png
-
-The Embryo-style comparison matches each saved Ours domain to a pathology
-label by one-to-one overlap (Hungarian assignment), then selects a marker for
-THAT LABEL, using labeled spots versus all other labeled spots. Its upper row
-shows only predicted membership; its lower row shows expression in ALL spots.
-Label-guided gene selection on this sample is descriptive, not independent
-validation of the predictions.
-
-All measured genes, including lncRNAs, are eligible for automatic figures.
-Display names are resolved by H5 feature ID, optionally using --gene-gtf
-and --gene-name-map. Unknown genes keep their exact original identifiers.
-No replacement or aggregation changes the expression measurements.
-
-Requires numpy, pandas, scipy, matplotlib, h5py. Outputs PNG/SVG/PDF per
-figure, CSV for numerical results, and analysis_status.json with provenance.
-Within predicted_domain_label_markers/, domain/ and expression/ contain
-separate titled panels with identical spatial geometry; the paired and
-paginated composites remain available.
-Their spot area adapts to displayed interspot spacing, not the clustering
-refinement radius (e.g. radius=50) used to generate the saved labels.
-"""
+"""TRACE command-line utility."""
 import sys
 from pathlib import Path as _ReleasePath
 sys.path.insert(0, str(_ReleasePath(__file__).resolve().parents[1]))
@@ -76,7 +27,6 @@ COLORS = ("#4E79A7", "#E15759", "#76B7B2", "#F28E2B", "#59A14F",
           "#2F6B8A", "#BD4D53", "#448D85", "#CE6B1A", "#43804A",
           "#885882", "#B49A28", "#745747", "#D6798A", "#6B747D")
 
-
 def save(fig, path, dpi):
     path.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "svg", "pdf"):
@@ -85,15 +35,12 @@ def save(fig, path, dpi):
     plt.close(fig)
     LOG.info("Saved %s.{png,svg,pdf}", path)
 
-
 def key(value):
     return str(value).strip().casefold()
-
 
 def sort_labels(values):
     return sorted(set(str(v) for v in values),
                   key=lambda v: (0, int(v)) if v.isdigit() else (1, v))
-
 
 def read_predictions(path, column="Ours"):
     frame = pd.read_csv(path, dtype={"spot_id": str}, low_memory=False)
@@ -110,7 +57,6 @@ def read_predictions(path, column="Ours"):
     if not np.isfinite(frame[["spatial_x", "spatial_y"]].to_numpy()).all():
         raise ValueError("Non-finite spatial coordinates")
     return frame.set_index("spot_id", drop=False)
-
 
 def read_10x(path, spot_ids):
     try:
@@ -139,7 +85,7 @@ def read_10x(path, spot_ids):
     matrix = matrix[order]
     if matrix.shape[1] != len(names) or len(gene_ids) != len(names):
         raise ValueError("10x feature dimension mismatch")
-    # Sum columns with repeated symbols so a marker cannot be selected at random.
+
     normalized_names = [key(v) for v in names]
     unique = list(dict.fromkeys(normalized_names))
     if len(unique) < len(names):
@@ -160,10 +106,8 @@ def read_10x(path, spot_ids):
         raise ValueError("Counts must be finite and nonnegative")
     return matrix.astype(np.float32), names, gene_ids
 
-
 def resolve_gene_labels(genes, gene_ids, gtf=None, name_map=None):
-    """Resolve figure labels by stable IDs; keep expression indexed by H5 names."""
-    # These are source-specific, verified names, not inferred protein aliases.
+
     known = {
         "ENSG00000236272": ("SCUBE1-AS2", "HGNC:40633; lncRNA"),
         "ENSG00000254695": ("lnc-INSC-2", "LNCipedia v5.2 locus ID; lncRNA; not an HGNC symbol"),
@@ -215,15 +159,13 @@ def resolve_gene_labels(genes, gene_ids, gtf=None, name_map=None):
                         "display_name": label, "name_source": source})
     return pd.DataFrame.from_records(records)
 
-
 def normalized_counts(counts):
     totals = np.asarray(counts.sum(axis=1)).ravel()
     norm = counts.multiply((1e4 / np.maximum(totals, 1))[:, None]).tocsr()
     return norm
 
-
 def highly_variable_genes(norm, counts, genes, n_top, out_dir):
-    """Select genes by variance of log1p(CPM10k); no annotations are used."""
+
     logged = norm.copy().tocsr()
     np.log1p(logged.data, out=logged.data)
     mean = np.asarray(logged.mean(axis=0)).ravel()
@@ -242,7 +184,6 @@ def highly_variable_genes(norm, counts, genes, n_top, out_dir):
         out_dir / "HVG_gene_statistics.csv", index=False)
     return chosen
 
-
 def fdr_bh(pvalues):
     p = np.asarray(pvalues, dtype=float)
     p = np.where(np.isfinite(p), np.clip(p, 0, 1), 1)
@@ -253,9 +194,8 @@ def fdr_bh(pvalues):
     output[order] = np.minimum(ranked, 1)
     return output
 
-
 def de_test(norm, genes, group_a, group_b, block_size=256):
-    """Welch t-test on log1p normalized counts; log2FC on normalized means."""
+
     if int(group_a.sum()) < 3 or int(group_b.sum()) < 3:
         raise ValueError("DE requires at least three spots in each group")
     result = []
@@ -279,7 +219,6 @@ def de_test(norm, genes, group_a, group_b, block_size=256):
     table["fdr"] = fdr_bh(table.pvalue)
     return table.sort_values(["fdr", "pvalue", "gene"]).reset_index(drop=True)
 
-
 def scatter_spatial(ax, xy, labels, palette, point_size=4., legend=False):
     for label in sort_labels(labels):
         mask = labels == label
@@ -292,7 +231,6 @@ def scatter_spatial(ax, xy, labels, palette, point_size=4., legend=False):
         ax.legend(loc="upper left", bbox_to_anchor=(1, 1), frameon=False,
                   markerscale=2.2, fontsize=7, ncol=1)
 
-
 def domain_map(frame, column, path, dpi, point_size=4., legend=True):
     labels = frame[column].astype(str).to_numpy()
     ordered = sort_labels(labels)
@@ -303,13 +241,11 @@ def domain_map(frame, column, path, dpi, point_size=4., legend=True):
     save(fig, path, dpi)
     return palette
 
-
 def marker_values(norm, genes, symbol):
     lookup = {key(v): i for i, v in enumerate(genes)}
     if key(symbol) not in lookup:
         return None
     return np.log1p(norm[:, lookup[key(symbol)]].toarray().ravel())
-
 
 def marker_map(xy, values, name, path, dpi, size):
     upper = np.quantile(values, .992)
@@ -326,7 +262,6 @@ def marker_map(xy, values, name, path, dpi, size):
     fig.colorbar(sc, ax=ax, fraction=.035, pad=.01, label="log(1 + counts per 10k)")
     save(fig, path, dpi)
     return True
-
 
 def violin(norm, genes, labels, requested, path, dpi, display=None):
     available = [(name, marker_values(norm, genes, name)) for name in requested]
@@ -356,7 +291,6 @@ def violin(norm, genes, labels, requested, path, dpi, display=None):
     save(fig, path, dpi)
     return True
 
-
 def correlation(norm, labels, path, out_dir, dpi):
     groups = sort_labels(labels)
     means = np.vstack([np.asarray(norm[labels == group].mean(axis=0)).ravel()
@@ -368,8 +302,7 @@ def correlation(norm, labels, path, out_dir, dpi):
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * .31), max(4.7, len(groups) * .30)))
     off_diag = corr[~np.eye(len(groups), dtype=bool)]
     lower = float(np.nanmin(off_diag)) if off_diag.size else -1.
-    # Use the data range, and disclose both its range and the gene subset in
-    # the accompanying CSV/status. A fixed [-1,1] range hides real differences.
+
     lower = max(-1., np.floor(lower * 100) / 100)
     upper = 1. if lower < 1 else 1.00001
     im = ax.imshow(corr, cmap="viridis", vmin=lower, vmax=upper,
@@ -383,9 +316,8 @@ def correlation(norm, labels, path, out_dir, dpi):
     fig.colorbar(im, ax=ax, label="Pearson r", fraction=.046, pad=.02)
     save(fig, path, dpi)
 
-
 def label_marker_choice(table, norm, inside, outside, gene_lookup):
-    """Choose one enriched HVG in the annotated label, never in predicted domains."""
+
     candidates = table[(table.fdr < .05) & (table.log2FC >= 1.) &
                        (table.prevalence >= .10)].copy()
     if candidates.empty:
@@ -402,9 +334,8 @@ def label_marker_choice(table, norm, inside, outside, gene_lookup):
     return candidates.sort_values(["log2FC", "fdr", "gene"],
                                   ascending=[False, True, True]).iloc[0]
 
-
 def match_predicted_to_annotations(predicted, truth, valid):
-    """One-to-one overlap matching; unmatched/weak matches remain explicit."""
+
     domains = sort_labels(predicted)
     classes = sort_labels(truth[valid])
     if not classes:
@@ -426,9 +357,8 @@ def match_predicted_to_annotations(predicted, truth, valid):
                        "match_method": "one-to-one maximum overlap; display only"})
     return result
 
-
 def paired_spot_area(ax, xy, fill=1.10):
-    """Scatter area in pt^2 derived from median on-screen spot spacing."""
+
     ax.figure.canvas.draw()
     screen = ax.transData.transform(xy)
     distance = cKDTree(screen).query(screen, k=2)[0][:, 1]
@@ -437,7 +367,6 @@ def paired_spot_area(ax, xy, fill=1.10):
         raise ValueError("Cannot infer spot spacing from duplicate spatial coordinates")
     spacing_pt = np.median(usable) * 72. / ax.figure.dpi
     return float((spacing_pt * fill) ** 2)
-
 
 def clean_spatial_axes(ax, xy):
     x_min, y_min = np.min(xy, axis=0)
@@ -449,10 +378,9 @@ def clean_spatial_axes(ax, xy):
     ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
 
-
 def predicted_marker_axes(ax_top, ax_bottom, xy, labels, domain, annotation,
                           gene, values, color, upper, fill, titles=True):
-    """Matched geometry, orientation and spot appearance in both rows."""
+
     selected = labels == domain
     for ax in (ax_top, ax_bottom):
         clean_spatial_axes(ax, xy)
@@ -469,10 +397,9 @@ def predicted_marker_axes(ax_top, ax_bottom, xy, labels, domain, annotation,
         ax_top.set_title(annotation, fontsize=9, pad=3)
         ax_bottom.set_title(gene, fontsize=9, pad=3)
 
-
 def embryo_style_markers(norm, genes, predicted, annotation, valid, xy, hvgs,
                          focus, out_dir, dpi, spot_fill, min_match_fraction, display):
-    """Pair SAVED predicted domains with markers selected from matched labels."""
+
     lookup = {key(g): i for i, g in enumerate(genes)}
     hvg_genes = [genes[i] for i in hvgs]
     mapping = match_predicted_to_annotations(predicted, annotation, valid)
@@ -536,8 +463,7 @@ def embryo_style_markers(norm, genes, predicted, annotation, valid, xy, hvgs,
         safe_label = re.sub(r"[^A-Za-z0-9_-]", "_", label)
         save(fig, out_dir / ("{}_marker_{}".format(
             safe_label, re.sub(r"[^A-Za-z0-9_-]", "_", gene_title))), dpi)
-        # Separate panels share the same axes rectangle; figure-level titles
-        # do not displace either spatial coordinate system.
+
         stem = safe_label
         for source, suffix in (("domain", "predicted"), ("expression", "expression_" +
                                 re.sub(r"[^A-Za-z0-9_-]", "_", gene_title))):
@@ -580,23 +506,21 @@ def embryo_style_markers(norm, genes, predicted, annotation, valid, xy, hvgs,
             start//6 + 1)), dpi)
     return len(figures)
 
-
 def volcano(table, a, b, path, dpi, y_max=None, label_genes=(), display=None):
-    """Display a robust FDR range; retain every gene in the exported DE table."""
+
     fig, ax = plt.subplots(figsize=(5.1, 4.5))
     result = draw_volcano(ax, table, a, b, y_max, label_genes, display)
     save(fig, path, dpi)
     return result
 
-
 def draw_volcano(ax, table, a, b, y_max=None, label_genes=(), display=None):
-    """Draw the same volcano into an individual or composite panel."""
+
     x = table.log2FC.to_numpy()
     fdr = table.fdr.to_numpy()
     positive = fdr[(fdr > 0) & np.isfinite(fdr)]
     positive_y = -np.log10(np.clip(positive, 1e-300, 1))
     if y_max is None:
-        # Ignore the extreme tail for axis selection; this only changes display.
+
         y_max = float(np.clip(np.ceil(np.percentile(positive_y, 99.5) / 5) * 5,
                               15, 45)) if len(positive_y) else 25.
     y = -np.log10(np.maximum(fdr, 1e-300))
@@ -641,9 +565,8 @@ def draw_volcano(ax, table, a, b, y_max=None, label_genes=(), display=None):
             "display_only_filter": "all genes retained in DE CSV",
             "significant_fdr_0.05_abs_log2fc_1": int(significant.sum())}
 
-
 def comparison_gene_names(table, requested):
-    """Pick one enriched gene per direction from the actual two-domain DE test."""
+
     if requested:
         return list(dict.fromkeys(requested)), "user supplied"
     candidate = table[(table.fdr < .05) & (table.log2FC.abs() >= 1) &
@@ -662,7 +585,6 @@ def comparison_gene_names(table, requested):
             chosen.append(remaining.iloc[0].gene)
     return chosen, "FDR < .05, absolute log2FC >= 1, prevalence >= .10; prefer one gene per direction, then next-best if necessary"
 
-
 def draw_comparison_spatial(ax, xy, labels, domains, colors):
     for group in domains:
         mask = labels == group
@@ -678,10 +600,8 @@ def draw_comparison_spatial(ax, xy, labels, domains, colors):
     ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
 
-
 def format_fdr(value):
     return "<1e-300" if value <= 0 else "{:.2g}".format(value)
-
 
 def draw_comparison_violin(axes, norm, genes, labels, domains, gene_names,
                            colors, pairwise, display):
@@ -719,10 +639,9 @@ def draw_comparison_violin(axes, norm, genes, labels, domains, gene_names,
         ax.tick_params(axis="y", labelsize=7)
     axes[-1].set_xlabel("Ours domain", fontsize=8)
 
-
 def comparison_triptych(norm, genes, frame, labels, domains, de_ab, gene_request,
                         y_max, dpi, out_dir, display):
-    """Save three matched panels plus a vector composite from saved domains."""
+
     out_dir.mkdir(parents=True, exist_ok=True)
     chosen, selection = comparison_gene_names(de_ab, gene_request)
     lookup = {key(g): g for g in genes}
@@ -789,7 +708,6 @@ def comparison_triptych(norm, genes, frame, labels, domains, de_ab, gene_request
             "outputs": ["F_three_domain_locations", "F_three_domain_gene_violins",
                         "F_three_domain_comparison", "F_three_domain_pairwise_DE.csv"]}
 
-
 def deg_heatmap(norm, genes, labels, a, b, table, path, dpi, seed,
                 display, cutoff=2., limit=16):
     selected = table[(table.fdr < .05) & (table.log2FC.abs() >= cutoff)]
@@ -819,7 +737,6 @@ def deg_heatmap(norm, genes, labels, a, b, table, path, dpi, seed,
     save(fig, path, dpi)
     return True
 
-
 def read_gmt(path):
     terms = {}
     with path.open(encoding="utf-8") as stream:
@@ -830,7 +747,6 @@ def read_gmt(path):
     if not terms:
         raise ValueError("No gene sets found in GMT: {}".format(path))
     return terms
-
 
 def go_enrichment(table, gmt, out_dir, dpi, a, b):
     sets = read_gmt(gmt)
@@ -874,7 +790,6 @@ def go_enrichment(table, gmt, out_dir, dpi, a, b):
               frameon=False, fontsize=8)
     save(fig, out_dir / "G_GO_enrichment", dpi)
     return True
-
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1152,7 +1067,6 @@ def main(argv=None):
         (args.out_dir / "analysis_status.json").write_text(
             json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
