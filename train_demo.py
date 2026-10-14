@@ -9,7 +9,7 @@ import pandas as pd
 import scanpy as sc
 import torch
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-from trace_model import AdaMixGraphST
+from trace_model import TRACE
 
 DEMO_DEFAULTS = {'K_max': 9,
  'alpha': 10.0,
@@ -64,18 +64,18 @@ def main():
             raise ValueError('No matching metadata barcodes; row-order matching is not used')
         data.obs['ground_truth'] = meta[a.label_column].reindex(data.obs_names)
     kwargs = dict(DEMO_DEFAULTS, device=torch.device(a.device), n_clusters=a.n_clusters)
-    allowed = inspect.signature(AdaMixGraphST.__init__).parameters
+    allowed = inspect.signature(TRACE.__init__).parameters
     extra = set(kwargs) - set(allowed)
     if extra:
         raise ValueError('Selected model does not support demo arguments: ' + str(sorted(extra)))
     start = time.perf_counter()
-    trained = AdaMixGraphST(data, **kwargs).train()
+    trained = TRACE(data, **kwargs).train()
     if trained is None or 'emb' not in trained.obsm:
         raise ValueError('Model did not return an embedding')
     z = np.asarray(trained.obsm['emb'])
     if z.ndim != 2 or len(z) != trained.n_obs or not np.isfinite(z).all():
         raise ValueError('Invalid embedding')
-    from GraphST.utils import clustering
+    from tools.utils import clustering
     clustering(trained, n_clusters=a.n_clusters, **DEMO_EVALUATION)
     xy = np.asarray(trained.obsm['spatial'])[:, :2]
     pred = pd.DataFrame({'spot_id': trained.obs_names.astype(str),
