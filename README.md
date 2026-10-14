@@ -40,12 +40,3 @@ Use the provided result directories with the analysis entry points.
 Always pass explicit data/result and output paths. Raw expression and annotations
 must be downloaded from their original sources. Domain IDs are specific to the
 released predictions. Example commands are provided in docs/analysis_commands.md.
-
-## Authors
-
-Yuan He, Kaimiao Hu, Changming Sun, Leyi Wei and Ran Su.
-Contact: ran.su@tju.edu.cn
-
-## Citation and license
-
-TODO: add the manuscript/preprint citation when available and confirm all licenses.
